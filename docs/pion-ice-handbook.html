@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pion ICE Field Manual: Mental Models, Architecture & P2P Streaming</title>
+  <style>
+    :root {
+      --bg: #090d13;
+      --sidebar-bg: #0d1117;
+      --card-bg: #131822;
+      --card-border: #212836;
+      --text: #c5cdd8;
+      --text-muted: #8b949e;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.12);
+      --code-bg: #06090e;
+      --border: #2b3342;
+      --success: #3fb950;
+      --warning: #d29922;
+      --purple: #bc8cff;
+      --cyan: #39c5cf;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.8;
+      display: flex;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 280px;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.25rem;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    aside .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    aside .version {
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+
+    aside nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    aside nav li {
+      margin-bottom: 0.5rem;
+    }
+
+    aside nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      display: block;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    aside nav a:hover {
+      color: var(--heading);
+      background: rgba(88, 166, 255, 0.1);
+    }
+
+    /* Main Content */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 3.5rem 3rem 6rem;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2.5rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      margin-bottom: 1.2rem;
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: var(--heading);
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    h2 {
+      font-size: 1.8rem;
+      color: var(--heading);
+      margin: 4rem 0 1.25rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      color: var(--heading);
+      margin: 2rem 0 0.75rem;
+    }
+
+    p { margin-bottom: 1.35rem; }
+
+    /* Callout Boxes */
+    .callout {
+      background: var(--card-bg);
+      border-left: 4px solid var(--accent);
+      padding: 1.4rem 1.6rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.8rem 0;
+      border-top: 1px solid var(--card-border);
+      border-right: 1px solid var(--card-border);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .callout.model { border-left-color: var(--purple); }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.success { border-left-color: var(--success); }
+
+    .callout-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--heading);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .diagram-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.86rem;
+      color: #79c0ff;
+      overflow-x: auto;
+      margin: 1.8rem 0;
+      line-height: 1.55;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0 2rem;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.85rem 1rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: var(--card-bg);
+      color: var(--heading);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.4rem;
+      overflow-x: auto;
+      margin: 1.4rem 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.86rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #ff7b72;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 85%;
+    }
+
+    pre code {
+      color: #e6edf3;
+      background: transparent;
+      padding: 0;
+      font-size: 100%;
+    }
+
+    .keyword { color: #ff7b72; font-weight: 600; }
+    .func { color: #d2a8ff; }
+    .type { color: #ffa657; }
+    .string { color: #a5d6ff; }
+    .comment { color: #8b949e; font-style: italic; }
+
+    ol, ul {
+      margin-left: 1.6rem;
+      margin-bottom: 1.4rem;
+    }
+
+    li { margin-bottom: 0.6rem; }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside>
+    <div class="brand">📦 Pion ICE Manual</div>
+    <div class="version">RFC 8445 • v4.4.4</div>
+    <nav>
+      <ul>
+        <li><a href="#philosophy">1. The Core Philosophy</a></li>
+        <li><a href="#stun">2. The Truth About STUN</a></li>
+        <li><a href="#candidates">3. Demystifying Candidates</a></li>
+        <li><a href="#disconnect-mystery">4. The Disconnect Mystery</a></li>
+        <li><a href="#handshake-security">5. The Security Handshake</a></li>
+        <li><a href="#priority-race">6. How the Winner is Chosen</a></li>
+        <li><a href="#roles">7. Host vs Listener Roles</a></li>
+        <li><a href="#lifecycle">8. Lifecycle Callbacks</a></li>
+        <li><a href="#sending-things">9. Sending Text, Commands &amp; Audio</a></li>
+        <li><a href="#scaling">10. Scaling to 10 Peers</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- MAIN DOCUMENTATION CONTENT -->
+  <main>
+    <header>
+      <div class="badge">Comprehensive Reference Documentation</div>
+      <h1>Pion ICE Field Manual</h1>
+      <p class="subtitle">
+        A deep architectural reference covering NAT traversal physics, candidate matrices, cryptographic handshakes, and peer-to-peer audio streaming mechanics.
+      </p>
+    </header>
+
+    <!-- CHAPTER 1 -->
+    <section id="philosophy">
+      <h2>1. The Core Philosophy: Why Pion ICE?</h2>
+      <p>
+        When developers want to stream audio peer-to-peer, they are often directed to <strong>WebRTC</strong>. 
+        However, standard WebRTC introduces tremendous cognitive overhead: SDP offer/answer text blobs, 
+        browser state machines, DTLS handshakes, SCTP multiplexing, and media codec negotiation.
+      </p>
+      <p>
+        <strong>Pion ICE decouples NAT traversal from the data protocol.</strong> It does one job with mathematical precision:
+      </p>
+      <div class="callout success">
+        <div class="callout-title">The Pion ICE Promise</div>
+        Punch through firewalls and home routers, find the fastest direct UDP path between two machines, and hand you a raw <code>*ice.Conn</code> socket. What you send over that socket is 100% up to you.
+      </div>
+    </section>
+
+    <!-- CHAPTER 2 -->
+    <section id="stun">
+      <h2>2. The Truth About STUN</h2>
+      <p>
+        A common fear is that using a STUN server requires an account, an API key, or ongoing server fees.
+      </p>
+      <div class="callout model">
+        <div class="callout-title">Mental Model: The Mirror</div>
+        A STUN server is simply a mirror on the public internet. Your computer sends a 32-byte UDP ping asking: <em>"What does my router's public IP and port look like to the outside world?"</em> 
+        The STUN server reflects back: <em>"You look like 196.191.61.180:52414."</em> That conversation takes 5 milliseconds and is completely finished.
+      </div>
+      <p>
+        <strong>Zero bytes of your audio stream ever touch the STUN server.</strong> Because STUN is unauthenticated and uses negligible bandwidth, Google, Cloudflare, and others host free public mirrors:
+      </p>
+      <pre><code>stunURI, _ := stun.<span class="func">ParseURI</span>(<span class="string">"stun:stun.l.google.com:19302"</span>)</code></pre>
+      <p>
+        <strong>When do you NOT need STUN?</strong> On a local Wi-Fi network, on a mesh VPN (Tailscale/WireGuard), or when running on localhost. Local <code>host</code> candidates connect directly without contacting STUN.
+      </p>
+    </section>
+
+    <!-- CHAPTER 3 -->
+    <section id="candidates">
+      <h2>3. Demystifying Candidates</h2>
+      <p>
+        Why doesn't your computer just give the peer "its IP address"? 
+        Because your computer doesn't have <em>one</em> address—it has a Wi-Fi IP, a loopback IP, maybe virtual machine adapters, and a public WAN IP.
+      </p>
+      <div class="callout model">
+        <div class="callout-title">Mental Model: The Contact Card</div>
+        An ICE Candidate is a single potential door to knock on. Sending your candidate list is like saying: 
+        <em>"If you're in my room, knock on my door (Host). If you're across town, call my phone (STUN srflx). Try all my numbers and let's use the one that picks up first."</em>
+      </div>
+
+      <h3>Anatomy of a Candidate Line</h3>
+      <div class="diagram-box">
+candidate:0 2878742611 1 udp 2130706431 10.236.211.134 57447 typ host ufrag HaxSh generation 0
+          │      │     │  │       │            │         │    │   │            │           │
+          │      │     │  │       │            │         │    │   │            │           └── Initial gather (0)
+          │      │     │  │       │            │         │    │   │            └────────────── Security token
+          │      │     │  │       │            │         │    │   └─────────────────────────── Type (host/srflx/relay)
+          │      │     │  │       │            │         │    └─────────────────────────────── Port number
+          │      │     │  │       │            │         └──────────────────────────────────── IP address
+          │      │     │  │       │            └────────────────────────────────────────────── Priority score
+          │      │     │  │       └─────────────────────────────────────────────────────────── Transport (UDP)
+          │      │     │  └─────────────────────────────────────────────────────────────────── Component ID (1 = Primary)
+          │      └─────┴────────────────────────────────────────────────────────────────────── Foundation hash
+          └─────────────────────────────────────────────────────────────────────────────────── Index
+      </div>
+
+      <h3>Common Linux Interfaces</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>IP Pattern</th>
+            <th>Type</th>
+            <th>What it is on Linux</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>127.0.0.1</code></td>
+            <td><code>host</code></td>
+            <td><strong>Loopback (`lo`)</strong>: Internal machine-to-itself communication.</td>
+          </tr>
+          <tr>
+            <td><code>10.x.x.x</code> / <code>192.168.1.x</code></td>
+            <td><code>host</code></td>
+            <td><strong>Physical LAN (`wlan0`/`eth0`)</strong>: Your real physical Wi-Fi or Ethernet card.</td>
+          </tr>
+          <tr>
+            <td><code>192.168.122.1</code></td>
+            <td><code>host</code></td>
+            <td><strong>KVM / libvirt (`virbr0`)</strong>: Linux virtual machine bridge.</td>
+          </tr>
+          <tr>
+            <td><code>172.17.x.1</code> ... <code>172.28.x.1</code></td>
+            <td><code>host</code></td>
+            <td><strong>Virtual Container Bridges</strong>: Created by Podman, Docker, LXC, or MicroK8s.</td>
+          </tr>
+          <tr>
+            <td>Public WAN IP</td>
+            <td><code>srflx</code></td>
+            <td><strong>Server-Reflexive</strong>: Your public internet router IP discovered via STUN.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CHAPTER 4 -->
+    <section id="disconnect-mystery">
+      <h2>4. The Disconnect Mystery: Martian Filtering</h2>
+      <p>
+        In testing, you may observe the connection transition to <code>Connected</code> and then immediately drop to <code>Disconnected</code> after 5 seconds:
+      </p>
+      <div class="diagram-box">
+🏆 Selected Local:  127.0.0.1 (host)
+🏆 Selected Remote: 172.20.0.1 (host)
+🔄 [State Change]: Disconnected
+      </div>
+      <p>
+        <strong>Why did this happen?</strong> One peer picked Loopback (<code>127.0.0.1</code>), while the other picked a virtual container bridge (<code>172.20.0.1</code>).
+      </p>
+      <p>
+        The Linux kernel implements <em>Reverse Path Filtering</em> (Martian packet protection). While the initial STUN packet slipped through local route tables, subsequent 2-second background keepalive heartbeats crossing between loopback and bridge subnets were dropped by the kernel. After 5 seconds of silence, ICE declared the link dead.
+      </p>
+      <p>
+        <strong>The Solution:</strong> When testing on one machine, filter out virtual bridge interfaces so both peers select <code>127.0.0.1</code> $\leftrightarrow$ <code>127.0.0.1</code>.
+      </p>
+    </section>
+
+    <!-- CHAPTER 5 -->
+    <section id="handshake-security">
+      <h2>5. The Security Handshake: Why Dial Uses Remote Passwords</h2>
+      <p>
+        When you run <code>agent.Dial(ctx, remoteUfrag, remotePwd)</code>, why do you pass the <em>remote</em> peer's credentials rather than your own?
+      </p>
+      <div class="callout model">
+        <div class="callout-title">Mental Model: The Secret Knock at the Door</div>
+        Your peer's IP is exposed to the wild internet where bots and port scanners constantly blast random packets. To prove you are an authorized friend and not an internet scanner, your ping must speak <strong>their secret password</strong>.
+      </div>
+      <p>
+        Inside every STUN ping fired during <code>Dial()</code>, Pion embeds two security fields:
+      </p>
+      <ol>
+        <li><strong><code>USERNAME</code></strong>: Formatted as <code>remoteUfrag:localUfrag</code> (<em>"Hey Bob, this is Alice knocking!"</em>).</li>
+        <li><strong><code>MESSAGE-INTEGRITY</code></strong>: An HMAC-SHA1 signature of the packet computed using <strong><code>remotePwd</code></strong>.</li>
+      </ol>
+      <p>
+        When the remote peer receives the packet, it validates the signature against its own password. If a random internet bot sends packets to that port, the signature check fails and the packet is silently dropped.
+      </p>
+    </section>
+
+    <!-- CHAPTER 6 -->
+    <section id="priority-race">
+      <h2>6. How the Winner is Chosen: The Priority Race</h2>
+      <p>
+        If both peers supply 10 candidates each, does Pion broadcast your audio to all 10?
+      </p>
+      <div class="callout warning">
+        <div class="callout-title">The Myth: Broadcasting</div>
+        <strong>No. Audio is never broadcast to all candidates.</strong> That would destroy bandwidth. All candidates compete in an audition, but exactly <strong>one</strong> candidate pair is hired for the job.
+      </div>
+
+      <h3>The 3-Step Selection Process</h3>
+      <ol>
+        <li>
+          <strong>The Matrix (Checklist):</strong> Pion multiplies local and remote candidates ($10 \times 10 = 100$ candidate pairs).
+        </li>
+        <li>
+          <strong>Priority Sorting:</strong> Pairs are sorted by speed/cost:
+          <ul>
+            <li><code>Host</code> $\leftrightarrow$ <code>Host</code> (LAN/Loopback) $\rightarrow$ <strong>Highest priority</strong> (0ms latency, zero cost).</li>
+            <li><code>srflx</code> $\leftrightarrow$ <code>srflx</code> (Internet via STUN) $\rightarrow$ <strong>Medium priority</strong>.</li>
+            <li><code>relay</code> (TURN proxy) $\rightarrow$ <strong>Lowest priority</strong>.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>The Race &amp; Nomination:</strong> Pings are fired down the sorted list. As soon as the highest-priority pair succeeds, the Controlling agent stamps it with <code>USE-CANDIDATE</code>. That pair becomes <strong>Nominated</strong>, and <strong>100% of all subsequent data travels exclusively over that single socket</strong>.
+        </li>
+      </ol>
+    </section>
+
+    <!-- CHAPTER 7 -->
+    <section id="roles">
+      <h2>7. Host vs Listener Roles: Dispelling the Naming Confusion</h2>
+      <p>
+        Are "Host" and "Listener" official Pion concepts? <strong>No.</strong> They are purely arbitrary names we chose for our command line flags.
+      </p>
+      <p>
+        Pion ICE has only two real, functional roles:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Role in Pion</th>
+            <th>Method</th>
+            <th>What it actually does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Controlling Agent</strong></td>
+            <td><code>agent.Dial()</code></td>
+            <td><strong>The Decider.</strong> Initiates checks and chooses the winning pair with <code>USE-CANDIDATE</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Controlled Agent</strong></td>
+            <td><code>agent.Accept()</code></td>
+            <td><strong>The Follower.</strong> Responds to pings and adopts the path chosen by the Controlling agent.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Can the audio streamer start first?</strong> Yes! In fact, in an audio app, the streamer starting first, generating an invite code, and letting the listener connect is the most natural real-world workflow.
+      </p>
+    </section>
+
+    <!-- CHAPTER 8 -->
+    <section id="lifecycle">
+      <h2>8. Lifecycle Callbacks: Event Listeners</h2>
+      <p>
+        Functions like <code>OnCandidate</code> and <code>OnConnectionStateChange</code> are <strong>event listeners</strong> that you register once during setup:
+      </p>
+      <ul>
+        <li>
+          <strong><code>OnCandidate</code>:</strong> Fires multiple times as the local interfaces and STUN mirrors report addresses. When gathering is 100% complete, it fires one final time with <code>c == nil</code>.
+        </li>
+        <li>
+          <strong><code>OnConnectionStateChange</code>:</strong> Stays active for the entire life of your program. It tracks the ICE state machine:
+          <code>New</code> $\rightarrow$ <code>Checking</code> $\rightarrow$ <code>Connected</code> $\rightarrow$ <code>Disconnected</code> (temporary glitch) $\rightarrow$ <code>Connected</code> (self-healed!).
+        </li>
+      </ul>
+    </section>
+
+    <!-- CHAPTER 9 -->
+    <section id="sending-things">
+      <h2>9. Sending Data: The 1-Byte Multiplexer</h2>
+      <p>
+        Because an <code>*ice.Conn</code> passes individual datagrams, you can prefix byte <code>0</code> with a <strong>type discriminator</strong> to send text, commands, and binary audio across the same pipe:
+      </p>
+      <div class="diagram-box">
+[ Byte 0: Tag ] ──► [ Bytes 1..N: Payload ]
+'T' (0x54)      ──► Plain Text string
+'C' (0x43)      ──► JSON Command: {"action":"PLAY","track":"song.mp3"}
+'B' (0x42)      ──► Binary Audio chunk (1200 bytes)
+      </div>
+
+      <h3>The UDP Audio Streaming Rules</h3>
+      <ol>
+        <li><strong>Keep chunks $\le$ 1,200 bytes:</strong> Packets exceeding the standard 1,500 MTU get fragmented or dropped by routers.</li>
+        <li><strong>Use a Metronome (Pacing):</strong> Do not blast files in a raw loop. For a 128 kbps MP3 (16 KB/sec), send 1,200-byte chunks on a <code>time.Ticker(75 * time.Millisecond)</code> to match real-time playback.</li>
+      </ol>
+    </section>
+
+    <!-- CHAPTER 10 -->
+    <section id="scaling">
+      <h2>10. Scaling to 10 Peers</h2>
+      <p>
+        Because an <code>ice.Agent</code> is strictly 1-to-1, a Host streaming to 10 listeners creates <strong>10 separate <code>*ice.Conn</code> sockets</strong> (a Star Mesh):
+      </p>
+      <div class="diagram-box">
+                        ┌──► [ Listener 1 ]  (conn #1)
+                        ├──► [ Listener 2 ]  (conn #2)
+   [ Host / Streamer ] ─┼──► ...
+                        └──► [ Listener 10 ] (conn #10)
+      </div>
+      <p>
+        <strong>Bandwidth Reality:</strong> 10 listeners on a 128 kbps audio stream consume only <strong>1.28 Mbps</strong> upload. Any standard home broadband connection can effortlessly broadcast direct P2P audio to 10 listeners.
+      </p>
+    </section>
+  </main>
+
+</body>
+</html>

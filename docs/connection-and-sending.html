@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pion ICE: Open Connection, Connect, & Send Things</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.15);
+      --code-bg: #070a0f;
+      --border: #30363d;
+      --success: #3fb950;
+      --warning: #d29922;
+      --purple: #bc8cff;
+      --cyan: #39c5cf;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.8;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      margin-bottom: 1rem;
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      color: var(--heading);
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      margin-bottom: 0.75rem;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+    }
+
+    h2 {
+      font-size: 1.65rem;
+      color: var(--heading);
+      margin: 3rem 0 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      color: var(--heading);
+      margin: 2rem 0 0.75rem;
+    }
+
+    p { margin-bottom: 1.3rem; }
+
+    .callout {
+      background: var(--card-bg);
+      border-left: 4px solid var(--accent);
+      padding: 1.25rem 1.5rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+      border-top: 1px solid var(--card-border);
+      border-right: 1px solid var(--card-border);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .callout.success { border-left-color: var(--success); }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.purple { border-left-color: var(--purple); }
+
+    .callout strong { color: var(--heading); }
+
+    .diagram-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+      color: #79c0ff;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      line-height: 1.6;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.3rem;
+      overflow-x: auto;
+      margin: 1.2rem 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #ff7b72;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 85%;
+    }
+
+    pre code {
+      color: #e6edf3;
+      background: transparent;
+      padding: 0;
+      font-size: 100%;
+    }
+
+    .keyword { color: #ff7b72; font-weight: 600; }
+    .func { color: #d2a8ff; }
+    .type { color: #ffa657; }
+    .string { color: #a5d6ff; }
+    .comment { color: #8b949e; font-style: italic; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0 2rem;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.8rem 1rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background-color: var(--card-bg);
+      color: var(--heading);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .tag-t { color: #58a6ff; font-weight: bold; }
+    .tag-c { color: #bc8cff; font-weight: bold; }
+    .tag-b { color: #3fb950; font-weight: bold; }
+
+    ol, ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    li { margin-bottom: 0.6rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">Pion ICE • Deep Dive Guide</div>
+      <h1>Open Connection, Connect, &amp; Send Things</h1>
+      <p class="subtitle">A detailed, step-by-step technical breakdown of establishing an ICE connection from a listener and sending Text, JSON Commands, and Binary Audio.</p>
+    </header>
+
+    <!-- STAGE 1 -->
+    <section>
+      <h2>Stage 1: Open Connection (The Listener Setup)</h2>
+      <p>
+        The <strong>Listener</strong> (Controlled Agent) must initialize first. It creates an ICE Agent, discovers its local network adapters and public IP (via STUN), and exports its credentials so the Sender can find it.
+      </p>
+
+      <div class="diagram-box">
+STAGE 1 (Listener):
+[Init Agent with STUN] ──► [Gather Candidates] ──► [Wait for nil (Done)] ──► [Export ufrag, pwd, candidates]
+      </div>
+
+      <h3>Detailed Step-by-Step Code</h3>
+      <pre><code><span class="keyword">package</span> main
+
+<span class="keyword">import</span> (
+    <span class="string">"context"</span>
+    <span class="string">"fmt"</span>
+    <span class="string">"sync"</span>
+    <span class="string">"github.com/pion/ice/v4"</span>
+    <span class="string">"github.com/pion/stun/v4"</span>
+)
+
+<span class="comment">// 1. The Listener Session data that must be shared with the Sender</span>
+<span class="keyword">type</span> <span class="type">Session</span> <span class="keyword">struct</span> {
+    Ufrag      <span class="type">string</span>   <span class="string">`json:"ufrag"`</span>
+    Pwd        <span class="type">string</span>   <span class="string">`json:"pwd"`</span>
+    Candidates []<span class="type">string</span> <span class="string">`json:"candidates"`</span>
+}
+
+<span class="keyword">func</span> <span class="func">OpenListener</span>() (*ice.<span class="type">Agent</span>, <span class="type">Session</span>, <span class="type">error</span>) {
+    <span class="comment">// 2. Parse Google's free STUN server URL.</span>
+    <span class="comment">// The STUN server acts as a mirror to tell the Listener its public WAN IP and port.</span>
+    stunURI, err := stun.<span class="func">ParseURI</span>(<span class="string">"stun:stun.l.google.com:19302"</span>)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">Session</span>{}, err
+    }
+
+    <span class="comment">// 3. Create the Pion ICE Agent.</span>
+    <span class="comment">// WithUrls: tells Pion to query STUN for public IP/ports (Server-Reflexive candidates).</span>
+    <span class="comment">// WithNetworkTypes: restricts candidate gathering to IPv4 UDP (standard for P2P audio).</span>
+    <span class="comment">// WithIncludeLoopback: allows local testing on 127.0.0.1 on the same machine.</span>
+    agent, err := ice.<span class="func">NewAgentWithOptions</span>(
+        ice.<span class="func">WithUrls</span>([]*stun.<span class="type">URI</span>{stunURI}),
+        ice.<span class="func">WithNetworkTypes</span>([]ice.<span class="type">NetworkType</span>{ice.NetworkTypeUDP4}),
+        ice.<span class="func">WithIncludeLoopback</span>(),
+    )
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">Session</span>{}, err
+    }
+
+    <span class="comment">// 4. Register the candidate collection callback.</span>
+    <span class="comment">// As the agent finds interfaces and queries STUN, it calls this function for each candidate.</span>
+    <span class="keyword">var</span> candidates []<span class="type">string</span>
+    <span class="keyword">var</span> mu sync.<span class="type">Mutex</span>
+    gatherDone := <span class="func">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>{})
+
+    err = agent.<span class="func">OnCandidate</span>(<span class="keyword">func</span>(c ice.<span class="type">Candidate</span>) {
+        <span class="comment">// RFC 8445 Rule: When gathering finishes completely, Pion emits a nil candidate.</span>
+        <span class="keyword">if</span> c == <span class="keyword">nil</span> {
+            <span class="func">close</span>(gatherDone)
+            <span class="keyword">return</span>
+        }
+        mu.<span class="func">Lock</span>()
+        <span class="comment">// c.Marshal() serializes candidate details (IP, port, priority, type) to a standard string</span>
+        candidates = <span class="func">append</span>(candidates, c.<span class="func">Marshal</span>())
+        mu.<span class="func">Unlock</span>()
+    })
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">Session</span>{}, err
+    }
+
+    <span class="comment">// 5. Trigger the gathering process.</span>
+    <span class="keyword">if</span> err := agent.<span class="func">GatherCandidates</span>(); err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">Session</span>{}, err
+    }
+
+    <span class="comment">// 6. Block until gathering is 100% complete</span>
+    &lt;-gatherDone
+
+    <span class="comment">// 7. Retrieve the randomly generated local ICE credentials</span>
+    ufrag, pwd, err := agent.<span class="func">GetLocalUserCredentials</span>()
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">Session</span>{}, err
+    }
+
+    <span class="keyword">return</span> agent, <span class="type">Session</span>{
+        Ufrag:      ufrag,
+        Pwd:        pwd,
+        Candidates: candidates,
+    }, <span class="keyword">nil</span>
+}</code></pre>
+
+      <h3>What Just Happened?</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Field / Method</th>
+            <th>Technical Explanation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>agent.GatherCandidates()</code></td>
+            <td>Inspects all network interfaces for LAN IPs (Host candidates) and sends a UDP binding request to Google's STUN server to discover the external public WAN IP and port (Server-Reflexive candidates).</td>
+          </tr>
+          <tr>
+            <td><code>c == nil</code></td>
+            <td>Signals that the STUN query and local adapter scan are done. No more candidates will be generated.</td>
+          </tr>
+          <tr>
+            <td><code>ufrag</code> &amp; <code>pwd</code></td>
+            <td>The username fragment and password generated for this session. These ensure that only the authorized peer can connect, preventing random internet bots from injecting packets.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- STAGE 2 -->
+    <section>
+      <h2>Stage 2: Connect from Listener (The Handshake)</h2>
+      <p>
+        Now that the Listener has opened its agent and exported its <code>Session</code>, the <strong>Sender</strong> connects to it.
+      </p>
+
+      <div class="diagram-box">
+STAGE 2 (The Handshake):
+[ Sender ]                                                        [ Listener ]
+    │                                                                  │
+ 1. │── Gives Listener's Candidates to Agent ───────────────           │ 1. Gives Sender's Candidates
+    │                                                                  │
+ 2. │── agent.Dial(ctx, listenerUfrag, listenerPwd) ────────►          │ 2. agent.Accept(ctx, senderUfrag, senderPwd)
+    │   (Controlling: fires STUN checks &amp; punches hole)                 │    (Controlled: listens &amp; validates)
+    │                                                                  │
+ 3. └── CONNECTED! Both hold a direct, validated *ice.Conn ────────────┘
+      </div>
+
+      <h3>Sender Code (Dialing the Listener):</h3>
+      <pre><code><span class="comment">// Sender connects to the Listener (Sender is the Controlling agent)</span>
+<span class="keyword">func</span> <span class="func">ConnectSender</span>(ctx context.<span class="type">Context</span>, senderAgent *ice.<span class="type">Agent</span>, listenerSession <span class="type">Session</span>) (*ice.<span class="type">Conn</span>, <span class="type">error</span>) {
+    <span class="comment">// 1. Add all the Listener's candidates to the Sender's agent</span>
+    <span class="keyword">for</span> _, candStr := <span class="keyword">range</span> listenerSession.Candidates {
+        c, err := ice.<span class="func">UnmarshalCandidate</span>(candStr)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">continue</span>
+        }
+        <span class="keyword">if</span> err := senderAgent.<span class="func">AddRemoteCandidate</span>(c); err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> <span class="keyword">nil</span>, fmt.<span class="func">Errorf</span>(<span class="string">"failed adding listener candidate: %w"</span>, err)
+        }
+    }
+
+    <span class="comment">// 2. Dial starts sending STUN connectivity checks and punches through the firewall.</span>
+    <span class="comment">// It blocks until a working candidate pair is found and nominated.</span>
+    conn, err := senderAgent.<span class="func">Dial</span>(ctx, listenerSession.Ufrag, listenerSession.Pwd)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, fmt.<span class="func">Errorf</span>(<span class="string">"dial failed: %w"</span>, err)
+    }
+
+    <span class="keyword">return</span> conn, <span class="keyword">nil</span>
+}</code></pre>
+
+      <h3>Listener Code (Accepting the Sender):</h3>
+      <pre><code><span class="comment">// Listener accepts the Sender (Listener is the Controlled agent)</span>
+<span class="keyword">func</span> <span class="func">AcceptSender</span>(ctx context.<span class="type">Context</span>, listenerAgent *ice.<span class="type">Agent</span>, senderSession <span class="type">Session</span>) (*ice.<span class="type">Conn</span>, <span class="type">error</span>) {
+    <span class="comment">// 1. Add all the Sender's candidates to the Listener's agent</span>
+    <span class="keyword">for</span> _, candStr := <span class="keyword">range</span> senderSession.Candidates {
+        c, err := ice.<span class="func">UnmarshalCandidate</span>(candStr)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">continue</span>
+        }
+        <span class="keyword">if</span> err := listenerAgent.<span class="func">AddRemoteCandidate</span>(c); err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> <span class="keyword">nil</span>, fmt.<span class="func">Errorf</span>(<span class="string">"failed adding sender candidate: %w"</span>, err)
+        }
+    }
+
+    <span class="comment">// 2. Accept listens for the Sender's STUN pings and approves the nominated path.</span>
+    conn, err := listenerAgent.<span class="func">Accept</span>(ctx, senderSession.Ufrag, senderSession.Pwd)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, fmt.<span class="func">Errorf</span>(<span class="string">"accept failed: %w"</span>, err)
+    }
+
+    <span class="keyword">return</span> conn, <span class="keyword">nil</span>
+}</code></pre>
+
+      <div class="callout purple">
+        <strong>The Controlling vs Controlled Rule:</strong> 
+        The Sender calls <code>Dial()</code> (Controlling), actively deciding which network path wins. 
+        The Listener calls <code>Accept()</code> (Controlled), responding to checks and adopting the winning path.
+        Both functions return the identical underlying connection: an <code>*ice.Conn</code>.
+      </div>
+    </section>
+
+    <!-- STAGE 3 -->
+    <section>
+      <h2>Stage 3: Send Things (Text, Commands, &amp; Binary)</h2>
+      <p>
+        Now both sides hold an <code>*ice.Conn</code>. Because this connection transmits individual UDP datagrams, 
+        we tag the <strong>very first byte</strong> of every packet to identify its data type:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Tag Byte</th>
+            <th>Type</th>
+            <th>Payload Example</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code class="tag-t">'T' (0x54)</code></td>
+            <td><strong>Text</strong></td>
+            <td><code>"Hello over Pion ICE!"</code></td>
+            <td>Chat messages, status logs, ping/pong strings.</td>
+          </tr>
+          <tr>
+            <td><code class="tag-c">'C' (0x43)</code></td>
+            <td><strong>Command</strong></td>
+            <td><code>{"action":"PLAY","track":"audio.mp3"}</code></td>
+            <td>Structured JSON control messages (playback, volume, seek).</td>
+          </tr>
+          <tr>
+            <td><code class="tag-b">'B' (0x42)</code></td>
+            <td><strong>Binary</strong></td>
+            <td><code>[0x49, 0xD3, 0x11, ... 1200 bytes]</code></td>
+            <td>Audio frames, MP3 stream slices, file chunks.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>1. Functions to Send Text, Commands, &amp; Binary</h3>
+      <pre><code><span class="keyword">import</span> (
+    <span class="string">"encoding/json"</span>
+    <span class="string">"github.com/pion/ice/v4"</span>
+)
+
+<span class="comment">// Command represents structured control RPC</span>
+<span class="keyword">type</span> <span class="type">Command</span> <span class="keyword">struct</span> {
+    Action <span class="type">string</span> <span class="string">`json:"action"`</span> <span class="comment">// e.g. "PLAY", "PAUSE", "STOP", "VOLUME"</span>
+    Value  <span class="type">string</span> <span class="string">`json:"value"`</span>
+}
+
+<span class="comment">// --- SEND 1: TEXT ---</span>
+<span class="keyword">func</span> <span class="func">SendText</span>(conn *ice.<span class="type">Conn</span>, message <span class="type">string</span>) <span class="type">error</span> {
+    <span class="comment">// Construct: ['T'] + text bytes</span>
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{<span class="string">'T'</span>}, []<span class="type">byte</span>(message)...)
+    _, err := conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}
+
+<span class="comment">// --- SEND 2: COMMAND (JSON) ---</span>
+<span class="keyword">func</span> <span class="func">SendCommand</span>(conn *ice.<span class="type">Conn</span>, cmd <span class="type">Command</span>) <span class="type">error</span> {
+    jsonBytes, err := json.<span class="func">Marshal</span>(cmd)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> err
+    }
+    <span class="comment">// Construct: ['C'] + JSON bytes</span>
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{<span class="string">'C'</span>}, jsonBytes...)
+    _, err = conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}
+
+<span class="comment">// --- SEND 3: BINARY (Audio Frame) ---</span>
+<span class="keyword">func</span> <span class="func">SendBinary</span>(conn *ice.<span class="type">Conn</span>, audioChunk []<span class="type">byte</span>) <span class="type">error</span> {
+    <span class="comment">// NOTE: Keep audioChunk &lt;= 1200 bytes so UDP does not drop or fragment it.</span>
+    <span class="comment">// Construct: ['B'] + raw audio bytes</span>
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{<span class="string">'B'</span>}, audioChunk...)
+    _, err := conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}</code></pre>
+
+      <h3>2. Receiver: Reading &amp; Demultiplexing on the Listener</h3>
+      <p>
+        The Listener runs a single read loop. It examines byte <code>0</code> of each incoming packet and routes it accordingly:
+      </p>
+
+      <pre><code><span class="keyword">func</span> <span class="func">ReceiveAndProcess</span>(conn *ice.<span class="type">Conn</span>, audioSink io.<span class="type">Writer</span>) <span class="type">error</span> {
+    <span class="comment">// 2048-byte buffer accommodates maximum safe UDP datagrams</span>
+    buf := <span class="func">make</span>([]<span class="type">byte</span>, 2048)
+
+    <span class="keyword">for</span> {
+        n, err := conn.<span class="func">Read</span>(buf)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err <span class="comment">// Connection closed or network failed</span>
+        }
+        <span class="keyword">if</span> n &lt; 1 {
+            <span class="keyword">continue</span>
+        }
+
+        <span class="comment">// Extract Tag (byte 0) and Payload (bytes 1 through n)</span>
+        tag := buf[0]
+        payload := buf[1:n]
+
+        <span class="keyword">switch</span> tag {
+        <span class="keyword">case</span> <span class="string">'T'</span>:
+            <span class="comment">// 1. Handle Text</span>
+            textMsg := <span class="func">string</span>(payload)
+            fmt.<span class="func">Printf</span>(<span class="string">"💬 [Received Text]: %s\n"</span>, textMsg)
+
+        <span class="keyword">case</span> <span class="string">'C'</span>:
+            <span class="comment">// 2. Handle Command</span>
+            <span class="keyword">var</span> cmd <span class="type">Command</span>
+            <span class="keyword">if</span> err := json.<span class="func">Unmarshal</span>(payload, &amp;cmd); err == <span class="keyword">nil</span> {
+                fmt.<span class="func">Printf</span>(<span class="string">"⚡ [Received Command]: Action=%s, Value=%s\n"</span>, cmd.Action, cmd.Value)
+                <span class="comment">// e.g. if cmd.Action == "PAUSE" { pausePlayback() }</span>
+            }
+
+        <span class="keyword">case</span> <span class="string">'B'</span>:
+            <span class="comment">// 3. Handle Binary Audio</span>
+            <span class="comment">// Pipe directly to speaker player (ffplay/mpv) or write to disk</span>
+            <span class="keyword">if</span> _, err := audioSink.<span class="func">Write</span>(payload); err != <span class="keyword">nil</span> {
+                fmt.<span class="func">Printf</span>(<span class="string">"Audio playback error: %v\n"</span>, err)
+            }
+
+        <span class="keyword">default</span>:
+            fmt.<span class="func">Printf</span>(<span class="string">"⚠️ Unknown packet tag: %c (0x%x)\n"</span>, tag, tag)
+        }
+    }
+}</code></pre>
+
+      <div class="callout success">
+        <strong>Summary of the Flow:</strong>
+        <ol>
+          <li><strong>Listener opens:</strong> <code>NewAgentWithOptions</code> ➔ <code>GatherCandidates()</code> ➔ exports <code>Session</code>.</li>
+          <li><strong>Sender connects:</strong> imports <code>Session</code> ➔ calls <code>Dial()</code>. Listener calls <code>Accept()</code>.</li>
+          <li><strong>Data flows:</strong> Both use <code>conn.Write(['T'|'C'|'B'] + payload)</code> and <code>conn.Read()</code>.</li>
+        </ol>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

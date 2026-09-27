@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Dive: Pion ICE Internals & Audio Streaming Protocol</title>
+  <style>
+    :root {
+      --bg: #090d13;
+      --card-bg: #131822;
+      --card-border: #212836;
+      --text: #c5cdd8;
+      --text-muted: #8b949e;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.12);
+      --code-bg: #070a0f;
+      --border: #2b3342;
+      --success: #3fb950;
+      --warning: #d29922;
+      --purple: #bc8cff;
+      --cyan: #39c5cf;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.75;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      margin-bottom: 1.2rem;
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    h1 {
+      font-size: 2.6rem;
+      color: var(--heading);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      color: var(--heading);
+      margin: 3.5rem 0 1.25rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      color: var(--heading);
+      margin: 2rem 0 0.75rem;
+    }
+
+    h4 {
+      font-size: 1.05rem;
+      color: var(--cyan);
+      margin: 1.5rem 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    p { margin-bottom: 1.3rem; }
+
+    .toc {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.5rem 2rem;
+      margin: 2rem 0 3rem;
+    }
+
+    .toc-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toc ol {
+      margin-left: 1.2rem;
+      color: var(--accent);
+    }
+
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .callout {
+      background: var(--card-bg);
+      border-left: 4px solid var(--accent);
+      padding: 1.4rem 1.6rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.8rem 0;
+      border-top: 1px solid var(--card-border);
+      border-right: 1px solid var(--card-border);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .callout.warning {
+      border-left-color: var(--warning);
+    }
+
+    .callout.purple {
+      border-left-color: var(--purple);
+    }
+
+    .callout strong {
+      color: var(--heading);
+    }
+
+    .diagram-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      color: #79c0ff;
+      overflow-x: auto;
+      margin: 1.8rem 0;
+      line-height: 1.55;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0 2rem;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: var(--card-bg);
+      color: var(--heading);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.4rem;
+      overflow-x: auto;
+      margin: 1.4rem 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.86rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #ff7b72;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 85%;
+    }
+
+    pre code {
+      color: #e6edf3;
+      background: transparent;
+      padding: 0;
+      font-size: 100%;
+    }
+
+    .keyword { color: #ff7b72; font-weight: 600; }
+    .func { color: #d2a8ff; }
+    .type { color: #ffa657; }
+    .string { color: #a5d6ff; }
+    .comment { color: #8b949e; font-style: italic; }
+    .highlight { background: rgba(88, 166, 255, 0.15); padding: 0.1em 0.3em; border-radius: 3px; }
+
+    ul, ol {
+      margin-left: 1.6rem;
+      margin-bottom: 1.4rem;
+    }
+
+    li { margin-bottom: 0.6rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">RFC 8445 • Pion ICE v4 • Streaming Systems</div>
+      <h1>Deep Dive: How Pion ICE Connects and Streams</h1>
+      <p class="subtitle">An architectural, low-level guide to NAT traversal physics, ICE candidate checklists, socket mechanics, and audio frame streaming.</p>
+    </header>
+
+    <div class="toc">
+      <div class="toc-title">Table of Contents</div>
+      <ol>
+        <li><a href="#nat-physics">NAT Physics &amp; Why We Need ICE</a></li>
+        <li><a href="#candidate-anatomy">Anatomy of an ICE Candidate Line</a></li>
+        <li><a href="#checklist-formation">The ICE Connection Handshake (Pairing &amp; Nomination)</a></li>
+        <li><a href="#pion-agent-code">Pion Agent Implementation: Step-by-Step</a></li>
+        <li><a href="#udp-vs-tcp">The Datagram Reality: UDP vs TCP Streaming</a></li>
+        <li><a href="#audio-protocol">Designing a P2P Audio Streaming Protocol</a></li>
+        <li><a href="#complete-code">Full Annotated Code: Audio Streamer &amp; Player</a></li>
+        <li><a href="#connection-only">8. Pure Connection Establishment (No Data Logic)</a></li>
+        <li><a href="#multiplexing-data">9. Using the Connection: Sending Text, Commands &amp; Binary</a></li>
+      </ol>
+    </div>
+
+    <!-- CHAPTER 1 -->
+    <section id="nat-physics">
+      <h2>1. NAT Physics &amp; Why We Need ICE</h2>
+      <p>
+        To understand ICE, you must understand what a router (NAT - Network Address Translator) does when a packet leaves your computer.
+      </p>
+
+      <h3>The Inbound Firewall Rule</h3>
+      <p>
+        Your computer sits on a local private subnet, such as <code>192.168.1.50</code>. The outside internet only sees your router's public WAN IP, say <code>198.51.100.12</code>.
+      </p>
+      <p>
+        When you send an outbound UDP packet to a remote host, your router creates an entry in its <strong>State Translation Table</strong>:
+      </p>
+
+      <div class="diagram-box">
+NAT State Table Entry Created:
+Internal Endpoint:  192.168.1.50:48033
+External Endpoint:  198.51.100.12:61002  <--- (Mapped public port)
+Destination:        stun.l.google.com:19302
+Timeout:            30 seconds
+      </div>
+
+      <p>
+        Here is the catch: If a stranger on the internet tries to send a packet directly to <code>198.51.100.12:61002</code>, the router will look at its table. Because no outbound packet was previously sent to that stranger, <strong>the router silently drops the inbound packet</strong>.
+      </p>
+
+      <div class="callout warning">
+        <strong>The Core Paradox of P2P:</strong> Peer A cannot reach Peer B until Peer B sends a packet to Peer A. But Peer B cannot reach Peer A until Peer A sends a packet to Peer B!
+      </div>
+
+      <h3>How ICE Solves the Paradox (Hole Punching)</h3>
+      <p>
+        ICE coordinates both peers so that <strong>both peers send UDP packets to each other at the exact same time</strong>.
+      </p>
+      <ol>
+        <li>Peer A sends a packet to Peer B’s public IP:port. Peer B’s firewall blocks it, <em>but Peer A’s firewall now opens an outbound passage</em>.</li>
+        <li>Peer B sends a packet to Peer A’s public IP:port. When it arrives at Peer A’s firewall, Peer A’s firewall sees an active outgoing state, recognizes it as a response, and <strong>lets it through</strong>!</li>
+        <li>A direct bidirectional UDP tunnel is punched.</li>
+      </ol>
+    </section>
+
+    <!-- CHAPTER 2 -->
+    <section id="candidate-anatomy">
+      <h2>2. Anatomy of an ICE Candidate Line</h2>
+      <p>
+        During the discovery phase, Pion inspects all network interfaces and queries STUN servers. It outputs strings like this:
+      </p>
+
+      <div class="diagram-box">
+candidate:2878742611 1 udp 2130706431 10.236.211.134 32935 typ host ufrag ZzDN generation 0
+          ▲          ▲  ▲       ▲           ▲          ▲    ▲   ▲
+          │          │  │       │           │          │    │   └── Type (host/srflx/relay)
+          │          │  │       │           │          │    └────── Port
+          │          │  │       │           │          └─────────── IP Address
+          │          │  │       │           └────────────────────── Priority
+          │          │  │       └────────────────────────────────── Protocol (UDP/TCP)
+          │          │  └────────────────────────────────────────── Component ID (1 = RTP)
+          └──────────┴───────────────────────────────────────────── Foundation
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Name</th>
+            <th>What it Means in RFC 8445</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>2878742611</code></td>
+            <td><strong>Foundation</strong></td>
+            <td>An identifier assigned to candidates of the same type and network interface. Used to optimize connectivity checks.</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td><strong>Component ID</strong></td>
+            <td><code>1</code> indicates the primary data transport. (In legacy WebRTC, <code>2</code> was for RTCP, but modern ICE uses 1).</td>
+          </tr>
+          <tr>
+            <td><code>udp</code></td>
+            <td><strong>Transport</strong></td>
+            <td>UDP or TCP. UDP is preferred for real-time streaming because it avoids head-of-line blocking.</td>
+          </tr>
+          <tr>
+            <td><code>2130706431</code></td>
+            <td><strong>Priority</strong></td>
+            <td>A 32-bit integer calculated by Pion. Host candidates have higher priority than STUN (srflx), which have higher priority than TURN (relayed).</td>
+          </tr>
+          <tr>
+            <td><code>typ host</code></td>
+            <td><strong>Type</strong></td>
+            <td>
+              <strong>host</strong> = local NIC IP.<br>
+              <strong>srflx</strong> = Server Reflexive (your public IP learned via STUN).<br>
+              <strong>relay</strong> = TURN server relay.<br>
+              <strong>prflx</strong> = Peer Reflexive (discovered dynamically during checks).
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CHAPTER 3 -->
+    <section id="checklist-formation">
+      <h2>3. The ICE Connection Handshake (Pairing &amp; Nomination)</h2>
+      <p>
+        How do two peers with dozens of candidates decide which exact path to use?
+      </p>
+
+      <h3>Step 1: The Candidate Checklist (Cartesian Product)</h3>
+      <p>
+        When you give Peer B's candidates to Peer A, Pion creates a matrix of every local candidate paired with every remote candidate:
+      </p>
+      <div class="diagram-box">
+Pair 1: [Local Host: 192.168.1.5:4000]   <--->  [Remote Host: 10.0.0.12:5000]   (LAN connection)
+Pair 2: [Local SRFLX: 198.51.100.12:6100]<--->  [Remote SRFLX: 203.0.113.8:5500] (Internet P2P)
+Pair 3: [Local Host: 192.168.1.5:4000]   <--->  [Remote SRFLX: 203.0.113.8:5500]
+...
+      </div>
+
+      <h3>Step 2: STUN Binding Requests (The 4-Way Pings)</h3>
+      <p>
+        Pion tests each pair in order of priority by sending a STUN <code>Binding Request</code>.
+        The packet contains:
+      </p>
+      <ul>
+        <li><code>USERNAME</code> attribute: formatted as <code>remoteUfrag:localUfrag</code></li>
+        <li><code>MESSAGE-INTEGRITY</code> attribute: an HMAC-SHA1 signature computed using the remote peer’s <code>pwd</code>. This prevents third-party packet spoofing.</li>
+      </ul>
+
+      <h3>Step 3: Controlling vs Controlled Roles</h3>
+      <p>
+        This is where <code>agent.Dial()</code> vs <code>agent.Accept()</code> comes in:
+      </p>
+      <div class="callout purple">
+        <strong>The Controlling Agent (Dial):</strong> Has the authority to decide the final winner. When it sees a candidate pair that succeeds, it sends another STUN request containing the <code>USE-CANDIDATE</code> flag.<br><br>
+        <strong>The Controlled Agent (Accept):</strong> Listens, replies to STUN requests, and waits. As soon as it receives a request containing <code>USE-CANDIDATE</code>, it marks that pair as <strong>Nominated</strong> and stops testing other pairs.
+      </div>
+      <p>
+        Once a pair is Nominated, Pion locks that specific UDP socket and returns the <code>*ice.Conn</code>.
+      </p>
+    </section>
+
+    <!-- CHAPTER 4 -->
+    <section id="pion-agent-code">
+      <h2>4. Pion Agent Implementation: Step-by-Step</h2>
+      <p>
+        Here is what happens in Go when you set up the agent with <code>pion/ice/v4</code>:
+      </p>
+
+      <pre><code><span class="keyword">package</span> main
+
+<span class="keyword">import</span> (
+    <span class="string">"context"</span>
+    <span class="string">"time"</span>
+    <span class="string">"github.com/pion/ice/v4"</span>
+    <span class="string">"github.com/pion/stun/v4"</span>
+)
+
+<span class="keyword">func</span> <span class="func">setupICEAgent</span>(isControlling <span class="type">bool</span>) (*ice.<span class="type">Agent</span>, <span class="type">error</span>) {
+    <span class="comment">// 1. Parse public STUN server URI</span>
+    stunURI, _ := stun.<span class="func">ParseURI</span>(<span class="string">"stun:stun.l.google.com:19302"</span>)
+
+    <span class="comment">// 2. Create the ICE agent</span>
+    agent, err := ice.<span class="func">NewAgentWithOptions</span>(
+        ice.<span class="func">WithUrls</span>([]*stun.<span class="type">URI</span>{stunURI}),
+        ice.<span class="func">WithNetworkTypes</span>([]ice.<span class="type">NetworkType</span>{ice.NetworkTypeUDP4}),
+        ice.<span class="func">WithIncludeLoopback</span>(), <span class="comment">// Allows loopback testing on 127.0.0.1</span>
+    )
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, err
+    }
+
+    <span class="comment">// 3. Candidate Gathering hook</span>
+    gatherDone := <span class="func">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>{})
+    agent.<span class="func">OnCandidate</span>(<span class="keyword">func</span>(c ice.<span class="type">Candidate</span>) {
+        <span class="keyword">if</span> c == <span class="keyword">nil</span> {
+            <span class="comment">// RFC 8445: End of candidate gathering is signaled by a nil candidate</span>
+            <span class="func">close</span>(gatherDone)
+            <span class="keyword">return</span>
+        }
+        <span class="comment">// c.Marshal() turns the candidate struct into an RFC standard candidate string</span>
+    })
+
+    <span class="comment">// 4. Kick off asynchronous candidate discovery</span>
+    <span class="keyword">if</span> err := agent.<span class="func">GatherCandidates</span>(); err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, err
+    }
+    &lt;-gatherDone
+
+    <span class="keyword">return</span> agent, <span class="keyword">nil</span>
+}</code></pre>
+    </section>
+
+    <!-- CHAPTER 5 -->
+    <section id="udp-vs-tcp">
+      <h2>5. The Datagram Reality: UDP vs TCP Streaming</h2>
+      <p>
+        The biggest conceptual leap from HTTP/TCP programming to ICE programming is understanding that <strong>an <code>*ice.Conn</code> is not a byte stream</strong>. It is a <strong>datagram pipeline</strong>.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>TCP (e.g. HTTP, WebSockets)</th>
+            <th>UDP / Pion ICE (<code>*ice.Conn</code>)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Data model</strong></td>
+            <td>Continuous byte stream (no packet boundaries)</td>
+            <td>Discrete datagrams (message boundaries preserved)</td>
+          </tr>
+          <tr>
+            <td><strong>Single Write Limit</strong></td>
+            <td>Can write 100 MB at once (OS breaks it down)</td>
+            <td>Limited to network MTU (~1,400 bytes). Larger writes fail or drop!</td>
+          </tr>
+          <tr>
+            <td><strong>Packet Loss</strong></td>
+            <td>Kernel halts transmission and retransmits (Head-of-Line blocking)</td>
+            <td>Lost packets are skipped. Stream continues with low latency.</td>
+          </tr>
+          <tr>
+            <td><strong>Ordering</strong></td>
+            <td>Guaranteed strictly in-order</td>
+            <td>Packets can arrive out of order if routes fluctuate.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CHAPTER 6 -->
+    <section id="audio-protocol">
+      <h2>6. Designing a P2P Audio Streaming Protocol</h2>
+      <p>
+        Since UDP does not guarantee packet ordering, and routers drop packets larger than 1,500 bytes, we must build a simple <strong>framing layer</strong> for our audio.
+      </p>
+
+      <h3>1. Packet Header Structure (12 Bytes)</h3>
+      <p>Every chunk sent across ICE should prepend a tiny binary header:</p>
+
+      <div class="diagram-box">
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          Magic (0xAA55)       |          Payload Size         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                        Sequence Number                        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                    Timestamp (Milliseconds)                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                        Audio Payload                          |
+|                             ...                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      </div>
+
+      <ul>
+        <li><strong>Magic (2 bytes)</strong>: <code>0xAA55</code> to verify this is our audio packet.</li>
+        <li><strong>Payload Size (2 bytes)</strong>: Exact byte length of the audio chunk.</li>
+        <li><strong>Sequence Number (4 bytes)</strong>: Increments with every packet (<code>0, 1, 2...</code>). The receiver detects lost or out-of-order packets.</li>
+        <li><strong>Timestamp (4 bytes)</strong>: Milliseconds since playback began. Tells the receiver when to play this chunk.</li>
+      </ul>
+
+      <h3>2. Bitrate Pacing Math (The Metronome)</h3>
+      <p>
+        Suppose you are streaming an MP3 file encoded at <strong>128 kbps</strong>.
+      </p>
+      <ul>
+        <li>Bitrate in bytes: <code>128,000 bits / 8 = 16,000 bytes per second</code>.</li>
+        <li>We choose a safe payload size: <code>1,200 bytes</code> (safely below the 1,500 MTU).</li>
+        <li>How many packets per second? <code>16,000 / 1,200 = 13.33 packets/sec</code>.</li>
+        <li>Interval between packets: <code>1,200 / 16,000 = 0.075 seconds = 75 milliseconds</code>.</li>
+      </ul>
+      <p>
+        The sender configures a <code>time.NewTicker(75 * time.Millisecond)</code>. Each tick, it reads 1,200 bytes from the file, packs the 12-byte header, and calls <code>conn.Write(packet)</code>.
+      </p>
+    </section>
+
+    <!-- CHAPTER 7 -->
+    <section id="complete-code">
+      <h2>7. Full Annotated Code: Audio Streamer &amp; Receiver</h2>
+      <p>
+        Here is the production-style Go implementation demonstrating framing, pacing, and receiving:
+      </p>
+
+      <h3>The Sender (Pacing &amp; Packetizing Audio File)</h3>
+      <pre><code><span class="keyword">func</span> <span class="func">StreamAudioFile</span>(conn *ice.<span class="type">Conn</span>, filePath <span class="type">string</span>, bitrateKbps <span class="type">int</span>) <span class="type">error</span> {
+    file, err := os.<span class="func">Open</span>(filePath)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> err
+    }
+    <span class="keyword">defer</span> file.<span class="func">Close</span>()
+
+    chunkSize := 1200
+    audioBuf := <span class="func">make</span>([]<span class="type">byte</span>, chunkSize)
+    packet := <span class="func">make</span>([]<span class="type">byte</span>, 12+chunkSize) <span class="comment">// 12 byte header + payload</span>
+
+    <span class="comment">// Calculate ticker interval</span>
+    bytesPerSec := (bitrateKbps * 1000) / 8
+    interval := time.<span class="type">Duration</span>(<span class="func">float64</span>(chunkSize) / <span class="func">float64</span>(bytesPerSec) * <span class="func">float64</span>(time.Second))
+    ticker := time.<span class="func">NewTicker</span>(interval)
+    <span class="keyword">defer</span> ticker.<span class="func">Stop</span>()
+
+    <span class="keyword">var</span> seq uint32
+    startTime := time.<span class="func">Now</span>()
+
+    <span class="keyword">for</span> <span class="keyword">range</span> ticker.C {
+        n, err := file.<span class="func">Read</span>(audioBuf)
+        <span class="keyword">if</span> err == io.EOF {
+            fmt.<span class="func">Println</span>(<span class="string">"Audio stream complete!"</span>)
+            <span class="keyword">return</span> <span class="keyword">nil</span>
+        }
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err
+        }
+
+        <span class="comment">// Encode 12-byte header</span>
+        binary.BigEndian.<span class="func">PutUint16</span>(packet[0:2], 0xAA55)             <span class="comment">// Magic</span>
+        binary.BigEndian.<span class="func">PutUint16</span>(packet[2:4], <span class="func">uint16</span>(n))           <span class="comment">// Payload size</span>
+        binary.BigEndian.<span class="func">PutUint32</span>(packet[4:8], seq)                 <span class="comment">// Sequence</span>
+        timestamp := <span class="func">uint32</span>(time.<span class="func">Since</span>(startTime).<span class="func">Milliseconds</span>())
+        binary.BigEndian.<span class="func">PutUint32</span>(packet[8:12], timestamp)          <span class="comment">// Timestamp ms</span>
+
+        <span class="comment">// Copy audio bytes after header</span>
+        <span class="func">copy</span>(packet[12:], audioBuf[:n])
+
+        <span class="comment">// Write UDP datagram to ICE tunnel</span>
+        <span class="keyword">if</span> _, err := conn.<span class="func">Write</span>(packet[:12+n]); err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err
+        }
+        seq++
+    }
+    <span class="keyword">return</span> <span class="keyword">nil</span>
+}</code></pre>
+
+      <h3>The Receiver (De-framing &amp; Piping to Output)</h3>
+      <pre><code><span class="keyword">func</span> <span class="func">ReceiveAudioStream</span>(conn *ice.<span class="type">Conn</span>, output io.<span class="type">Writer</span>) <span class="type">error</span> {
+    buf := <span class="func">make</span>([]<span class="type">byte</span>, 2048)
+    <span class="keyword">var</span> lastSeq uint32
+
+    <span class="keyword">for</span> {
+        n, err := conn.<span class="func">Read</span>(buf)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err
+        }
+
+        <span class="comment">// Validate header</span>
+        <span class="keyword">if</span> n &lt; 12 { <span class="keyword">continue</span> }
+        magic := binary.BigEndian.<span class="func">Uint16</span>(buf[0:2])
+        <span class="keyword">if</span> magic != 0xAA55 { <span class="keyword">continue</span> } <span class="comment">// Corrupt or non-audio packet</span>
+
+        payloadSize := binary.BigEndian.<span class="func">Uint16</span>(buf[2:4])
+        seq := binary.BigEndian.<span class="func">Uint32</span>(buf[4:8])
+        _ = binary.BigEndian.<span class="func">Uint32</span>(buf[8:12]) <span class="comment">// timestamp</span>
+
+        <span class="comment">// Check for dropped packets</span>
+        <span class="keyword">if</span> lastSeq &gt; 0 &amp;&amp; seq != lastSeq+1 {
+            fmt.<span class="func">Printf</span>(<span class="string">"⚠️ Dropped %d packet(s)!\n"</span>, seq-lastSeq-1)
+        }
+        lastSeq = seq
+
+        <span class="comment">// Extract actual audio payload and pipe to player or file</span>
+        audioData := buf[12 : 12+payloadSize]
+        <span class="keyword">if</span> _, err := output.<span class="func">Write</span>(audioData); err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err
+        }
+    }
+}</code></pre>
+    </section>
+
+    <!-- SECTION 8: PURE CONNECTION ESTABLISHMENT -->
+    <section id="connection-only">
+      <h2>8. Pure Connection Establishment (No Data Logic)</h2>
+      <p>
+        Here is the isolated, modular pattern to establish an ICE connection. 
+        It decouples NAT traversal completely from whatever data you intend to send later.
+      </p>
+
+      <div class="diagram-box">
+[ 1. Init Agent + STUN ] ──► [ 2. Gather Candidates ] ──► [ 3. Trade Signaling ] ──► [ 4. Dial/Accept ] ──► *ice.Conn
+      </div>
+
+      <pre><code><span class="keyword">package</span> main
+
+<span class="keyword">import</span> (
+    <span class="string">"context"</span>
+    <span class="string">"fmt"</span>
+    <span class="string">"sync"</span>
+    <span class="string">"github.com/pion/ice/v4"</span>
+    <span class="string">"github.com/pion/stun/v4"</span>
+)
+
+<span class="comment">// SessionInfo is the exact data traded with the remote peer</span>
+<span class="keyword">type</span> <span class="type">SessionInfo</span> <span class="keyword">struct</span> {
+    Ufrag      <span class="type">string</span>   <span class="string">`json:"ufrag"`</span>
+    Pwd        <span class="type">string</span>   <span class="string">`json:"pwd"`</span>
+    Candidates []<span class="type">string</span> <span class="string">`json:"candidates"`</span>
+}
+
+<span class="comment">// 1 &amp; 2: Create Agent and collect all candidates</span>
+<span class="keyword">func</span> <span class="func">InitAgentAndGather</span>() (*ice.<span class="type">Agent</span>, <span class="type">SessionInfo</span>, <span class="type">error</span>) {
+    stunURI, err := stun.<span class="func">ParseURI</span>(<span class="string">"stun:stun.l.google.com:19302"</span>)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">SessionInfo</span>{}, err
+    }
+
+    agent, err := ice.<span class="func">NewAgentWithOptions</span>(
+        ice.<span class="func">WithUrls</span>([]*stun.<span class="type">URI</span>{stunURI}),
+        ice.<span class="func">WithNetworkTypes</span>([]ice.<span class="type">NetworkType</span>{ice.NetworkTypeUDP4}),
+        ice.<span class="func">WithIncludeLoopback</span>(),
+    )
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">SessionInfo</span>{}, err
+    }
+
+    <span class="keyword">var</span> candidates []<span class="type">string</span>
+    <span class="keyword">var</span> mu sync.<span class="type">Mutex</span>
+    gatherDone := <span class="func">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>{})
+
+    err = agent.<span class="func">OnCandidate</span>(<span class="keyword">func</span>(c ice.<span class="type">Candidate</span>) {
+        <span class="keyword">if</span> c == <span class="keyword">nil</span> {
+            <span class="func">close</span>(gatherDone)
+            <span class="keyword">return</span>
+        }
+        mu.<span class="func">Lock</span>()
+        candidates = <span class="func">append</span>(candidates, c.<span class="func">Marshal</span>())
+        mu.<span class="func">Unlock</span>()
+    })
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">SessionInfo</span>{}, err
+    }
+
+    <span class="keyword">if</span> err := agent.<span class="func">GatherCandidates</span>(); err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">SessionInfo</span>{}, err
+    }
+    &lt;-gatherDone
+
+    ufrag, pwd, err := agent.<span class="func">GetLocalUserCredentials</span>()
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        agent.<span class="func">Close</span>()
+        <span class="keyword">return</span> <span class="keyword">nil</span>, <span class="type">SessionInfo</span>{}, err
+    }
+
+    <span class="keyword">return</span> agent, <span class="type">SessionInfo</span>{
+        Ufrag:      ufrag,
+        Pwd:        pwd,
+        Candidates: candidates,
+    }, <span class="keyword">nil</span>
+}
+
+<span class="comment">// 3 &amp; 4: Feed remote candidates and punch the hole</span>
+<span class="keyword">func</span> <span class="func">Connect</span>(ctx context.<span class="type">Context</span>, agent *ice.<span class="type">Agent</span>, remote <span class="type">SessionInfo</span>, isControlling <span class="type">bool</span>) (*ice.<span class="type">Conn</span>, <span class="type">error</span>) {
+    <span class="keyword">for</span> _, candStr := <span class="keyword">range</span> remote.Candidates {
+        c, err := ice.<span class="func">UnmarshalCandidate</span>(candStr)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">continue</span>
+        }
+        <span class="keyword">if</span> err := agent.<span class="func">AddRemoteCandidate</span>(c); err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> <span class="keyword">nil</span>, fmt.<span class="func">Errorf</span>(<span class="string">"failed to add remote candidate: %w"</span>, err)
+        }
+    }
+
+    <span class="keyword">if</span> isControlling {
+        <span class="keyword">return</span> agent.<span class="func">Dial</span>(ctx, remote.Ufrag, remote.Pwd)
+    }
+    <span class="keyword">return</span> agent.<span class="func">Accept</span>(ctx, remote.Ufrag, remote.Pwd)
+}</code></pre>
+    </section>
+
+    <!-- SECTION 9: MULTIPLEXING DATA -->
+    <section id="multiplexing-data">
+      <h2>9. Using the Connection: Sending Text, Commands &amp; Binary</h2>
+      <p>
+        Because an <code>*ice.Conn</code> passes individual datagrams, you can prefix the very first byte with a 
+        <strong>Message Type Discriminator</strong> to send text, JSON commands, and binary audio over the same pipe.
+      </p>
+
+      <div class="diagram-box">
+Datagram Header:
+[ Byte 0: Type Tag ] ──► [ Bytes 1..N: Payload ]
+
+0x01: Plain Text     ──► "Hello from peer!"
+0x02: JSON Command   ──► {"action":"PLAY","track":"song.mp3","volume":80}
+0x03: Binary Chunk   ──► [0x49, 0xD3, 0x11, ... 1200 bytes audio data]
+      </div>
+
+      <h3>Send Functions (Text, Command, Binary)</h3>
+      <pre><code><span class="keyword">const</span> (
+    MsgTypeText    <span class="type">byte</span> = 0x01
+    MsgTypeCommand <span class="type">byte</span> = 0x02
+    MsgTypeBinary  <span class="type">byte</span> = 0x03
+)
+
+<span class="keyword">type</span> <span class="type">Command</span> <span class="keyword">struct</span> {
+    Action <span class="type">string</span> <span class="string">`json:"action"`</span> <span class="comment">// e.g. "PLAY", "PAUSE", "STOP", "SEEK"</span>
+    Value  <span class="type">string</span> <span class="string">`json:"value"`</span>
+}
+
+<span class="comment">// 1. Send Plain Text</span>
+<span class="keyword">func</span> <span class="func">SendText</span>(conn *ice.<span class="type">Conn</span>, text <span class="type">string</span>) <span class="type">error</span> {
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{MsgTypeText}, []<span class="type">byte</span>(text)...)
+    _, err := conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}
+
+<span class="comment">// 2. Send JSON Command</span>
+<span class="keyword">func</span> <span class="func">SendCommand</span>(conn *ice.<span class="type">Conn</span>, cmd <span class="type">Command</span>) <span class="type">error</span> {
+    data, err := json.<span class="func">Marshal</span>(cmd)
+    <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+        <span class="keyword">return</span> err
+    }
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{MsgTypeCommand}, data...)
+    _, err = conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}
+
+<span class="comment">// 3. Send Raw Binary (Keep <= 1200 bytes for UDP safety)</span>
+<span class="keyword">func</span> <span class="func">SendBinary</span>(conn *ice.<span class="type">Conn</span>, data []<span class="type">byte</span>) <span class="type">error</span> {
+    packet := <span class="func">append</span>([]<span class="type">byte</span>{MsgTypeBinary}, data...)
+    _, err := conn.<span class="func">Write</span>(packet)
+    <span class="keyword">return</span> err
+}</code></pre>
+
+      <h3>The Receiver Dispatcher Loop</h3>
+      <pre><code><span class="keyword">func</span> <span class="func">ListenAndDispatch</span>(conn *ice.<span class="type">Conn</span>, onAudioChunk <span class="keyword">func</span>([]<span class="type">byte</span>)) <span class="type">error</span> {
+    buf := <span class="func">make</span>([]<span class="type">byte</span>, 2048)
+
+    <span class="keyword">for</span> {
+        n, err := conn.<span class="func">Read</span>(buf)
+        <span class="keyword">if</span> err != <span class="keyword">nil</span> {
+            <span class="keyword">return</span> err
+        }
+        <span class="keyword">if</span> n &lt; 1 {
+            <span class="keyword">continue</span>
+        }
+
+        msgType := buf[0]
+        payload := buf[1:n]
+
+        <span class="keyword">switch</span> msgType {
+        <span class="keyword">case</span> MsgTypeText:
+            fmt.<span class="func">Printf</span>(<span class="string">"💬 [TEXT]: %s\n"</span>, <span class="func">string</span>(payload))
+
+        <span class="keyword">case</span> MsgTypeCommand:
+            <span class="keyword">var</span> cmd <span class="type">Command</span>
+            <span class="keyword">if</span> err := json.<span class="func">Unmarshal</span>(payload, &amp;cmd); err == <span class="keyword">nil</span> {
+                fmt.<span class="func">Printf</span>(<span class="string">"⚡ [COMMAND]: %s = %s\n"</span>, cmd.Action, cmd.Value)
+            }
+
+        <span class="keyword">case</span> MsgTypeBinary:
+            <span class="comment">// Hand off audio data immediately to playback or file buffer</span>
+            onAudioChunk(payload)
+
+        <span class="keyword">default</span>:
+            fmt.<span class="func">Printf</span>(<span class="string">"⚠️ Unknown packet type: 0x%x\n"</span>, msgType)
+        }
+    }
+}</code></pre>
+    </section>
+  </div>
+</body>
+</html>
