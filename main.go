@@ -224,10 +224,9 @@ func main() {
 	}
 	fmt.Println("==================================================")
 
-	// Run receiver concurrently in the background for both host and listener
-	go CurrentSession.RecieveAudio()
-
 	if isHost {
+		CurrentSession.RecieveAudio()
+	} else {
 		CurrentSession.SendAudio()
 	}
 
