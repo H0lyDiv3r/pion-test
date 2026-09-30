@@ -67,13 +67,13 @@ func main() {
 		ice.WithIncludeLoopback(),
 		ice.WithIPFilter(func(ip net.IP) bool {
 			// Ignore virtual container subnets (Docker 172.16-31.x.x and libvirt 192.168.122.x)
-			if ipf := ip.To4(); ipf != nil {
-				isDocker := ipf[0] == 172 && (ipf[1] >= 16 && ipf[1] <= 31)
-				isVirbr0 := ipf[0] == 192 && ipf[1] == 168 && ipf[2] == 122
-				if isDocker || isVirbr0 {
-					return false
-				}
-			}
+			// if ipf := ip.To4(); ipf != nil {
+			// 	isDocker := ipf[0] == 172 && (ipf[1] >= 16 && ipf[1] <= 31)
+			// 	isVirbr0 := ipf[0] == 192 && ipf[1] == 168 && ipf[2] == 122
+			// 	if isDocker || isVirbr0 {
+			// 		return false
+			// 	}
+			// }
 			return true
 		}),
 	)
