@@ -48,19 +48,31 @@ func main() {
 	proveSymmetricNAT()
 
 	// 1. Multiple STUN & TURN relay servers
-	iceServers := []string{
+	stunServers := []string{
 		"stun:stun.cloudflare.com:3478",
 		"stun:stun.l.google.com:19302",
 		"stun:stun1.l.google.com:19302",
-		"turn:openrelay:openrelay@openrelay.metered.ca:80",
-		"turn:openrelay:openrelay@openrelay.metered.ca:443",
-		"turn:openrelay:openrelay@openrelay.metered.ca:443?transport=tcp",
 	}
 
 	var iceURIs []*stun.URI
-	for _, rawURI := range iceServers {
+	for _, rawURI := range stunServers {
 		u, err := stun.ParseURI(rawURI)
 		if err == nil {
+			iceURIs = append(iceURIs, u)
+		}
+	}
+
+	// Add free public TURN relay servers (OpenRelay / Metered)
+	turnServers := []string{
+		"turn:openrelay.metered.ca:80",
+		"turn:openrelay.metered.ca:443",
+		"turn:openrelay.metered.ca:443?transport=tcp",
+	}
+	for _, rawURI := range turnServers {
+		u, err := stun.ParseURI(rawURI)
+		if err == nil {
+			u.Username = "openrelay"
+			u.Password = "openrelay"
 			iceURIs = append(iceURIs, u)
 		}
 	}
