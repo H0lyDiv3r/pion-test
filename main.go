@@ -45,6 +45,8 @@ func main() {
 	isHost := *role == "host"
 	fmt.Printf("\n=== RUNNING AS %s ===\n", strings.ToUpper(*role))
 
+	proveSymmetricNAT()
+
 	// 1. Multiple STUN servers on BOTH standard port 3478 and Google's 19302
 	stunServers := []string{
 		"stun:stun.cloudflare.com:3478",
@@ -309,3 +311,72 @@ func (s *Session) RecieveAudio() {
 			n, buf[:previewLen], totalBytes)
 	}
 }
+
+func proveSymmetricNAT() {
+	conn, err := net.ListenUDP("udp4", nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	addr1, err1 := querySTUN(conn, "stun.l.google.com:19302")
+	addr2, err2 := querySTUN(conn, "stun.cloudflare.com:3478")
+
+	if err1 != nil || err2 != nil {
+		fmt.Printf("⚠️  NAT diagnostic skipped: %v / %v\n", err1, err2)
+		return
+	}
+
+	fmt.Println("==================================================")
+	fmt.Println("🔬 NAT BEHAVIOR PROOF (RFC 3489 Test)")
+	fmt.Println("==================================================")
+	fmt.Printf("Same local socket tested against 2 STUN servers:\n")
+	fmt.Printf("  • Mapped by Google STUN:     %s:%d\n", addr1.IP, addr1.Port)
+	fmt.Printf("  • Mapped by Cloudflare STUN: %s:%d\n", addr2.IP, addr2.Port)
+	fmt.Println("--------------------------------------------------")
+
+	if addr1.Port == addr2.Port {
+		fmt.Println("✅ RESULT: Port match (Cone NAT). NAT is NOT symmetric.")
+	} else {
+		fmt.Println("🚨 PROOF OF SYMMETRIC NAT (Ethio Telecom CGNAT):")
+		fmt.Printf("   Ethio Telecom mapped your socket to port %d for Google, but port %d for Cloudflare!\n", addr1.Port, addr2.Port)
+		fmt.Println("   Because the public port changes per destination:")
+		fmt.Println("   1. Your laptop tells the server: 'Call me on port A'")
+		fmt.Println("   2. When your laptop dials the server, your carrier shifts to port B")
+		fmt.Println("   3. The server replies to port A, and Ethio Telecom DROPS the packet!")
+		fmt.Println("   👉 This is the exact reason Laptop as Host fails.")
+	}
+	fmt.Println("==================================================")
+}
+
+func querySTUN(conn *net.UDPConn, server string) (*net.UDPAddr, error) {
+	rAddr, err := net.ResolveUDPAddr("udp4", server)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+	if _, err := conn.WriteTo(msg.Raw, rAddr); err != nil {
+		return nil, err
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 1024)
+	n, _, err := conn.ReadFrom(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &stun.Message{Raw: buf[:n]}
+	if err := res.Decode(); err != nil {
+		return nil, err
+	}
+
+	var xorAddr stun.XORMappedAddress
+	if err := xorAddr.GetFrom(res); err != nil {
+		return nil, err
+	}
+
+	return &net.UDPAddr{IP: xorAddr.IP, Port: xorAddr.Port}, nil
+}
+
