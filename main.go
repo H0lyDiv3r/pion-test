@@ -29,7 +29,7 @@ type Session struct {
 	conn  *ice.Conn
 }
 
-var CurrentSession *Session
+var CurrentSession = &Session{}
 
 func main() {
 	role := flag.String("role", "", "Role to run: 'listener' or 'host'")
