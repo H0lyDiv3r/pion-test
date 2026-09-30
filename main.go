@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -22,6 +23,13 @@ type SessionInfo struct {
 	Pwd        string   `json:"pwd"`
 	Candidates []string `json:"candidates"`
 }
+
+type Session struct {
+	agent *ice.Agent
+	conn  *ice.Conn
+}
+
+var CurrentSession *Session
 
 func main() {
 	role := flag.String("role", "", "Role to run: 'listener' or 'host'")
@@ -58,9 +66,13 @@ func main() {
 		ice.WithNetworkTypes([]ice.NetworkType{ice.NetworkTypeUDP4}),
 		ice.WithIncludeLoopback(),
 		ice.WithIPFilter(func(ip net.IP) bool {
-			// Ignore virtual container subnets (172.x.x.x and 192.168.122.x)
-			if ip.To4() != nil && (ip[0] == 172 || (ip[0] == 192 && ip[1] == 168 && ip[2] == 122)) {
-				return false
+			// Ignore virtual container subnets (Docker 172.16-31.x.x and libvirt 192.168.122.x)
+			if ipf := ip.To4(); ipf != nil {
+				isDocker := ipf[0] == 172 && (ipf[1] >= 16 && ipf[1] <= 31)
+				isVirbr0 := ipf[0] == 192 && ipf[1] == 168 && ipf[2] == 122
+				if isDocker || isVirbr0 {
+					return false
+				}
 			}
 			return true
 		}),
@@ -68,6 +80,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	CurrentSession.agent = agent
+
 	defer agent.Close()
 
 	// 3. Monitor connection state
@@ -81,6 +96,7 @@ func main() {
 	gatherDone := make(chan struct{})
 
 	_ = agent.OnCandidate(func(c ice.Candidate) {
+		fmt.Println("candidate", c)
 		if c == nil {
 			close(gatherDone)
 			return
@@ -98,6 +114,7 @@ func main() {
 	// Validate whether this computer discovered its public IP
 	hasPublic := false
 	for _, c := range candidates {
+		fmt.Println("candidat epublic ip check", c)
 		if strings.Contains(c, "typ srflx") {
 			hasPublic = true
 			break
@@ -190,6 +207,11 @@ func main() {
 		conn, err = agent.Accept(ctx, remoteSession.Ufrag, remoteSession.Pwd)
 	}
 
+	CurrentSession = &Session{
+		agent: agent,
+		conn:  conn,
+	}
+
 	if err != nil {
 		fmt.Printf("\n❌ Connection Failed: %v\n", err)
 		if !remoteHasPublic || !hasPublic {
@@ -205,38 +227,16 @@ func main() {
 		fmt.Printf("🏆 Selected Path: %s <---> %s\n", selectedPair.Local.Address(), selectedPair.Remote.Address())
 	}
 	fmt.Println("==================================================")
-	fmt.Println("💬 You are now connected! Type a message and press ENTER.")
-	fmt.Println("==================================================")
 
-	// Receiver loop
-	go func() {
-		buf := make([]byte, 1500)
-		for {
-			n, err := conn.Read(buf)
-			if err != nil {
-				fmt.Println("\n[Connection closed]")
-				return
-			}
-			if n > 1 && buf[0] == 'T' {
-				fmt.Printf("\n📩 [Peer]: %s\n> ", string(buf[1:n]))
-			}
-		}
-	}()
+	// Run receiver concurrently in the background for both host and listener
+	go CurrentSession.RecieveAudio()
 
-	// Sender loop
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("> ")
-	for scanner.Scan() {
-		text := scanner.Text()
-		if len(text) > 0 {
-			packet := append([]byte{'T'}, []byte(text)...)
-			if _, err := conn.Write(packet); err != nil {
-				fmt.Printf("Error sending text: %v\n", err)
-				break
-			}
-			fmt.Print("> ")
-		}
+	if isHost {
+		CurrentSession.SendAudio()
 	}
+
+	// Keep connection alive to continue listening
+	select {}
 }
 
 func encodeSession(s SessionInfo) (string, error) {
@@ -255,4 +255,62 @@ func decodeSession(s string) (SessionInfo, error) {
 	}
 	err = json.Unmarshal(b, &info)
 	return info, err
+}
+
+func (s *Session) SendAudio() {
+	filePath := "/home/yuri/Data/projects/Go-p2p/p2p-mpv/excluded/tst.m4a"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("❌ Failed to open audio file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	tee := io.TeeReader(file, s.conn)
+
+	buf := make([]byte, 1200)
+	totalBytes := 0
+
+	fmt.Printf("🚀 [Sender]: Streaming %s to peer...\n", filePath)
+
+	for {
+		n, err := tee.Read(buf)
+		if n > 0 {
+			totalBytes += n
+			fmt.Printf("📤 [Sender]: Read & sent %d bytes | Total: %d bytes\n", n, totalBytes)
+		}
+		if err != nil {
+			break
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	fmt.Println("🏁 Finished streaming file!")
+}
+
+func (s *Session) RecieveAudio() {
+
+	buf := make([]byte, 1500)
+	totalBytes := 0
+
+	for {
+		n, err := s.conn.Read(buf)
+		if err != nil {
+			fmt.Println("Connection closed")
+			return
+		}
+		if n == 0 {
+			continue
+		}
+
+		totalBytes += n
+
+		// Show preview of first 8 bytes in Hex (e.g. "ff fb 90 64...")
+		previewLen := 8
+		if n < previewLen {
+			previewLen = n
+		}
+		fmt.Printf("📥 [Receiver]: Got %d bytes | Hex Preview: [% X...] | Total: %d bytes\n",
+			n, buf[:previewLen], totalBytes)
+	}
 }
