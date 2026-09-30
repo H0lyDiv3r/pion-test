@@ -47,24 +47,27 @@ func main() {
 
 	proveSymmetricNAT()
 
-	// 1. Multiple STUN servers on BOTH standard port 3478 and Google's 19302
-	stunServers := []string{
+	// 1. Multiple STUN & TURN relay servers
+	iceServers := []string{
 		"stun:stun.cloudflare.com:3478",
 		"stun:stun.l.google.com:19302",
 		"stun:stun1.l.google.com:19302",
+		"turn:openrelay:openrelay@openrelay.metered.ca:80",
+		"turn:openrelay:openrelay@openrelay.metered.ca:443",
+		"turn:openrelay:openrelay@openrelay.metered.ca:443?transport=tcp",
 	}
 
-	var stunURIs []*stun.URI
-	for _, rawURI := range stunServers {
+	var iceURIs []*stun.URI
+	for _, rawURI := range iceServers {
 		u, err := stun.ParseURI(rawURI)
 		if err == nil {
-			stunURIs = append(stunURIs, u)
+			iceURIs = append(iceURIs, u)
 		}
 	}
 
 	// 2. Initialize Agent with IP filter
 	agent, err := ice.NewAgentWithOptions(
-		ice.WithUrls(stunURIs),
+		ice.WithUrls(iceURIs),
 		ice.WithNetworkTypes([]ice.NetworkType{ice.NetworkTypeUDP4}),
 		ice.WithIncludeLoopback(),
 		ice.WithIPFilter(func(ip net.IP) bool {
@@ -113,14 +116,14 @@ func main() {
 	hasPublic := false
 	for _, c := range candidates {
 		fmt.Println("candidat epublic ip check", c)
-		if strings.Contains(c, "typ srflx") {
+		if strings.Contains(c, "typ srflx") || strings.Contains(c, "typ relay") {
 			hasPublic = true
 			break
 		}
 	}
 
 	if hasPublic {
-		fmt.Println("🌐 Public internet IP (STUN) discovered successfully!")
+		fmt.Println("🌐 Public internet endpoint (STUN or TURN relay) discovered successfully!")
 	} else {
 		fmt.Println("⚠️  WARNING: Could NOT discover your public internet IP!")
 		fmt.Println("   STUN UDP requests were blocked by your router, firewall, or VPN.")
@@ -175,7 +178,7 @@ func main() {
 	// 5. Add remote candidates and verify if the remote peer has a public IP
 	remoteHasPublic := false
 	for _, candStr := range remoteSession.Candidates {
-		if strings.Contains(candStr, "typ srflx") {
+		if strings.Contains(candStr, "typ srflx") || strings.Contains(candStr, "typ relay") {
 			remoteHasPublic = true
 		}
 		c, err := ice.UnmarshalCandidate(candStr)
@@ -186,10 +189,10 @@ func main() {
 	}
 
 	if !remoteHasPublic {
-		fmt.Println("\n❌ ERROR: The other peer has NO public STUN candidate!")
+		fmt.Println("\n❌ ERROR: The other peer has NO public STUN/TURN candidate!")
 		fmt.Println("   The other machine only gathered private Wi-Fi IPs (192.168.x.x).")
-		fmt.Println("   Their router, firewall, or VPN is blocking STUN.")
-		fmt.Println("   (Connection cannot traverse the public internet without a public IP).")
+		fmt.Println("   Their router, firewall, or VPN is blocking STUN and TURN.")
+		fmt.Println("   (Connection cannot traverse the public internet without a public IP or TURN relay).")
 	}
 
 	// Give internet checks 30 seconds to punch through
@@ -227,9 +230,9 @@ func main() {
 	fmt.Println("==================================================")
 
 	if isHost {
-		CurrentSession.RecieveAudio()
-	} else {
 		CurrentSession.SendAudio()
+	} else {
+		CurrentSession.RecieveAudio()
 	}
 
 	// Keep connection alive to continue listening
